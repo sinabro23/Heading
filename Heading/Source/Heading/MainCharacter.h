@@ -33,10 +33,27 @@ public:
 	UPROPERTY(VisibleAnywhere, Meta = (AllowPrivateAccess = "true"))
 	class USpringArmComponent* SpringArm;
 
+	UPROPERTY(VisibleAnywhere, Meta = (AllowPrivateAccess = "true"))
+	class USphereComponent* TapRange;
+
 	bool IsAttacking;
+	bool bIsTapOn = false;
+
+	UPROPERTY(VisibleAnywhere, Meta = (AllowPrivateAccess = "true"))
+	class AEnemy* CurrentTargetEnemy;
 public:
 	void UpDown(float Value);
 	void LeftRight(float Value);
 	void Yaw(float Value);
 	void Pitch(float Value);
+	
+	void Tap();
+public:
+	UFUNCTION()
+	void TapSphereOnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+	UFUNCTION()
+	void TapSphereOnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+
+	FRotator GetMonsterLookRotator(FVector Target);
 };

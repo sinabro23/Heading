@@ -5,7 +5,10 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-
+#include "Components/SphereComponent.h"
+#include "Kismet/KismetSystemLibrary.h"
+#include "Kismet/KismetMathLibrary.h"
+#include "Enemy.h"
 // Sets default values
 AMainCharacter::AMainCharacter()
 {
@@ -29,19 +32,41 @@ AMainCharacter::AMainCharacter()
 	bUseControllerRotationRoll = false;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 540.f, 0.f);
+
+	TapRange = CreateDefaultSubobject<USphereComponent>(TEXT("TAPRANGE"));
+	TapRange->SetupAttachment(GetRootComponent());
+	TapRange->InitSphereRadius(500.f);
+	TapRange->bHiddenInGame = false;
 }
 
 // Called when the game starts or when spawned
 void AMainCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	TapRange->OnComponentBeginOverlap.AddDynamic(this, &AMainCharacter::TapSphereOnOverlapBegin);
+	TapRange->OnComponentEndOverlap.AddDynamic(this, &AMainCharacter::TapSphereOnOverlapEnd);
 }
 
 // Called every frame
 void AMainCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	if (CurrentTargetEnemy && bIsTapOn)
+	{
+		FRotator LookAtYaw = GetMonsterLookRotator(CurrentTargetEnemy->GetActorLocation());
+		FRotator InterpRotation = FMath::RInterpTo(GetActorRotation(), LookAtYaw, GetWorld()->GetDeltaSeconds(), 30.f); // R은 Rotator
+
+		SetActorRotation(InterpRotation);
+		GetCharacterMovement()->bOrientRotationToMovement = false;
+		bUseControllerRotationYaw = true;
+		SpringArm->SetRelativeRotation(LookAtYaw);
+	}
+	else
+	{
+		GetCharacterMovement()->bOrientRotationToMovement = true;
+		bUseControllerRotationYaw = false;
+	}
 
 }
 
@@ -51,11 +76,13 @@ void AMainCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompo
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &AMainCharacter::Jump);
+	PlayerInputComponent->BindAction(TEXT("Tap"), EInputEvent::IE_Pressed, this, &AMainCharacter::Tap);
 
 	PlayerInputComponent->BindAxis(TEXT("MoveForward"), this, &AMainCharacter::UpDown);
 	PlayerInputComponent->BindAxis(TEXT("MoveRight"), this, &AMainCharacter::LeftRight);
 	PlayerInputComponent->BindAxis(TEXT("Turn"), this, &AMainCharacter::Yaw);
 	PlayerInputComponent->BindAxis(TEXT("LookUp"), this, &AMainCharacter::Pitch);
+
 }
 
 
@@ -91,4 +118,43 @@ void AMainCharacter::Yaw(float Value)
 void AMainCharacter::Pitch(float Value)
 {
 	AddControllerPitchInput(Value);
+}
+
+void AMainCharacter::Tap()
+{
+	if (bIsTapOn)
+	{
+		bIsTapOn = false;
+	}
+	else
+	{
+		bIsTapOn = true;
+	}
+}
+
+void AMainCharacter::TapSphereOnOverlapBegin(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	AEnemy* Enemy = Cast<AEnemy>(OtherActor);
+	if (Enemy)
+	{
+		CurrentTargetEnemy = Enemy;
+	}
+}
+	
+
+
+void AMainCharacter::TapSphereOnOverlapEnd(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (bIsTapOn)
+	{
+		CurrentTargetEnemy = nullptr;
+		bIsTapOn = false;
+	}
+}
+
+FRotator AMainCharacter::GetMonsterLookRotator(FVector Target)
+{
+	FRotator LookAtRotation = UKismetMathLibrary::FindLookAtRotation(GetActorLocation(), Target);
+	FRotator LookAtRotationYaw(0.f, LookAtRotation.Yaw, 0.f); // 고개돌리기위해 Yaw값만 필요함
+	return LookAtRotationYaw;
 }
